@@ -21,6 +21,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         xz-utils \
         zip \
         openjdk-25-jdk \
+        python3 \
+        python3-pip \
+        python3-venv \
         php8.5-cli \
         php8.5-xdebug \
         php8.5-curl \
@@ -43,9 +46,19 @@ RUN set -eu; \
         aarch64|arm64) node_arch=arm64 ;; \
         *) echo "unsupported architecture: $node_arch" >&2; exit 1 ;; \
     esac; \
-    curl -fsSL "https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-${node_arch}.tar.xz" -o /tmp/node.tar.xz \
+    node_version=$(curl -fsSL https://nodejs.org/dist/index.json 2>/dev/null \
+        | grep -oE '"version":"v[0-9.]+"[^}]*"lts":"[^"]+"' \
+        | head -n1 \
+        | sed -E 's/.*"version":"(v[0-9.]+)".*/\1/'); \
+    curl -fsSL "https://nodejs.org/dist/${node_version}/node-${node_version}-linux-${node_arch}.tar.xz" -o /tmp/node.tar.xz \
     && tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 \
     && rm -f /tmp/node.tar.xz
+
+RUN set -eu; \
+    curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && install -m 0755 /root/.local/bin/uv /usr/local/bin/uv \
+    && install -m 0755 /root/.local/bin/uvx /usr/local/bin/uvx \
+    && rm -rf /root/.local
 
 RUN groupadd -o --gid "${OPENCODE_GID}" opencode \
     && useradd -o \
@@ -68,11 +81,7 @@ RUN echo "cachebust=${CACHEBUST}" \
     && curl -fsSL https://opencode.ai/install \
         | bash -s -- --no-modify-path \
     && install -m 0755 /root/.opencode/bin/opencode /usr/local/bin/opencode \
-    && rm -rf /root/.opencode \
-    && curl -LsSf https://astral.sh/uv/install.sh | sh \
-    && install -m 0755 /root/.local/bin/uv /usr/local/bin/uv \
-    && install -m 0755 /root/.local/bin/uvx /usr/local/bin/uvx \
-    && rm -rf /root/.local/bin
+    && rm -rf /root/.opencode
 
 ENV HOME=/home/opencode \
     XDG_CONFIG_HOME=/home/opencode/.config \

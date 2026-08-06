@@ -9,12 +9,18 @@ server, used as the backend for JetBrains/other IDE integrations) inside a
 sandboxed, general-purpose dev container.
 
 - `Dockerfile` - builds the `ddr-opencode` image: Ubuntu 26.04 (resolute) LTS
-  base, OpenJDK 25 (LTS), PHP 8.5 + xdebug + `pgsql`/`pdo_pgsql`, Composer,
-  `uv` (`uvx`), common CLI tools, and the OpenCode binary. Zero third-party
-  package repos (until PHP 8.6 needs ondrej/sury).
+  base, OpenJDK 25 (LTS), Node.js (active LTS), Python 3.14 (the distro
+  `python3`), PHP 8.5 + xdebug + `pgsql`/`pdo_pgsql`, Composer, `uv` (`uvx`),
+  common CLI tools, and the OpenCode binary. Zero third-party package repos
+  (until PHP 8.6 needs ondrej/sury).
 - `opencode-acp-docker` - POSIX `sh` launcher (the user-facing entry point).
   Ensures the image exists/fresh, validates the host OpenCode auth, then
   `docker run`s the ACP server against the current directory.
+- `validate.sh` - POSIX `sh` validation. Must run where Docker is available:
+  it fails hard if the Docker CLI is missing or the `ddr-opencode` image is not
+  built, then verifies the toolchain assumptions inside the container (tool
+  versions, php modules, xdebug). It also lints the launcher and resolves the
+  node active LTS from the network as a reference.
 
 ## Key facts / gotchas
 
@@ -29,7 +35,17 @@ sandboxed, general-purpose dev container.
   use `docker run --rm --entrypoint bash ... <image> -c '...'`.
 - Ubuntu 26.04 has no `uv` package in its archives, so `uv`/`uvx` are installed
   via the official Astral installer (`https://astral.sh/uv/install.sh`) into
-  `/usr/local/bin` in the volatile layer (unpinned, like OpenCode).
+  `/usr/local/bin` in their own unpinned layer (see "Build cache strategy").
+- Node.js is installed from the nodejs.org tarballs, not the distro archive,
+  because the archive lags the current release line. The version is resolved at
+  build time from `https://nodejs.org/dist/index.json` and must be the current
+  **active LTS**: the first entry whose `"lts"` is a non-null string
+  (grep literally), *not* `dist/latest`, which may be an odd (non-LTS) major.
+- Python is the distro `python3` (3.14, the current stable line, maintained by
+  Ubuntu; the sandbox's `uv`/`uvx` reuse it as the default interpreter). Do NOT
+  bypass PEP 668 to pip-install globally: the image intentionally keeps the
+  system interpreter protected so agents install deps with `uv` or in a
+  `venv`.
 - Xdebug is installed with `xdebug.mode=off` (passive). On-demand enablement:
   `XDEBUG_MODE=coverage phpunit`, `XDEBUG_MODE=debug php ...`, etc. The mode
   setting lives in `/etc/php/8.5/mods-available/xdebug.ini`.
@@ -58,17 +74,23 @@ The Dockerfile is split into layers keyed to how often their inputs change:
 1. **Stable layer** - apt install (CLI tools, OpenJDK 25, PHP 8.5 packages,
    `composer`), php symlink, xdebug ini. Cached; refreshed only when the
    `ubuntu:26.04` tag digest moves (launcher passes `--pull`).
-2. **User setup layer** - `opencode` user, XDG dirs, perms. Static, cached.
-3. **Volatile layer** - starts at `ARG CACHEBUST` (injected by the launcher as
-   `--build-arg CACHEBUST=$(date +%s)`). Currently the only instructions are the
-   unpinned OpenCode and uv installers, so a fresh OpenCode and uv are fetched
-   on every launcher-triggered rebuild. `ARG CACHEBUST` must be *referenced*
-   inside the RUN (`echo "cachebust=${CACHEBUST}"`) or it will not invalidate
-   the cache.
+2. **Fresh tooling layers** - one `RUN` each for unpinned Node.js (active LTS,
+   version resolved at build time) and `uv`/`uvx` (Astral installer). Neither
+   is under `CACHEBUST`: they sit right after the stable layer, so they
+   re-resolve their latest versions whenever the base/apt content above them
+   changes, while staying cached across CACHEBUST-only rebuilds.
+3. **User setup layer** - `opencode` user, XDG dirs, perms. Static, cached.
+4. **Volatile layer** - starts at `ARG CACHEBUST` (injected by the launcher as
+   `--build-arg CACHEBUST=$(date +%s)`). Its only instruction is the unpinned
+   OpenCode installer, so a fresh OpenCode is fetched on every launcher-triggered
+   rebuild. `ARG CACHEBUST` must be *referenced* inside the RUN
+   (`echo "cachebust=${CACHEBUST}"`) or it will not invalidate the cache.
 
-Do not re-pin OpenCode or uv to a version: the whole point of the volatile
-layer is tracking the fast-moving upstream releases. Do not move slow-moving
-installs (apt, composer) into the volatile layer.
+Do not re-pin OpenCode: the whole point of the volatile layer is tracking the
+fast-moving upstream releases. Do not move slow-moving installs (apt, composer)
+into the volatile layer, and do not move Node/uv under `CACHEBUST` either -
+that would re-download their installers on every rebuild for no freshness gain
+(they already track their latest when their layer re-runs).
 
 The apt RUN in the stable layer uses two BuildKit cache mounts
 (`--mount=type=cache` on `/var/cache/apt` and `/var/lib/apt/lists`) so adding a
@@ -91,23 +113,24 @@ this working:
 Build (mirror the launcher exactly):
 
 ```sh
-docker build --pull -t ddr-opencode --build-arg "CACHEBUST=$(date +%s)" .
+./build.sh
 ```
 
-Smoke-test the toolchain:
+Smoke-test / validate the toolchain:
 
 ```sh
-docker run --rm --entrypoint bash --user 1000:1000 ddr-opencode -c '
-  java -version 2>&1 | head -1
-  php -v | head -1
-  composer --version | head -1
-  uv --version
-  php -m | grep -icE "^(curl|mbstring|dom|xml|zip|intl|sqlite3|bcmath|gd|pgsql|pdo_pgsql)$"
-  php -r "var_dump(extension_loaded(\"xdebug\"), ini_get(\"xdebug.mode\"));"
-'
+./validate.sh
 ```
 
-Lint the launcher: `sh -n opencode-acp-docker`.
+`./build.sh` runs the same `docker build --pull -t <image> --build-arg
+"CACHEBUST=$(date +%s)"` command the launcher uses (honoring `OPENCODE_DOCKER_IMAGE`
+and `DOCKER_BIN`), so a fresh OpenCode is fetched on every build.
+
+`./validate.sh` requires a working Docker environment and a built image: it
+lints the launcher, resolves the node active LTS from nodejs.org as a
+reference, then verifies the toolchain assumptions inside the `ddr-opencode`
+container (tool versions, php modules, xdebug). It fails hard if the Docker CLI
+or the image is missing.
 
 The launcher cannot run end-to-end unless the host has
 `~/.local/share/opencode/auth.json` (real OpenCode login).

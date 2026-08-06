@@ -11,6 +11,10 @@ The `ddr-opencode` image is based on Ubuntu 26.04 LTS and ships a
 general-purpose toolchain:
 
 - **OpenJDK 25** (LTS)
+- **Node.js** (current active LTS, resolved at build time)
+- **Python 3.14** (the Ubuntu 26.04 default `python3`, security-maintained).
+  The system interpreter is PEP 668-protected: install packages with `uv`
+  or in a `venv`, not globally.
 - **PHP 8.5** with `curl`, `mbstring`, `xml`, `zip`, `intl`, `sqlite3`,
   `pgsql`/`pdo_pgsql`, `bcmath`, `gd`, and **Xdebug** (passive by default)
 - **Composer** 2.x
@@ -78,16 +82,21 @@ Add packages in the stable layer of the `Dockerfile` (the `apt-get install`
 block) — they are cached and only reinstalled when the base image updates. The
 apt step uses BuildKit cache mounts (`/var/cache/apt` and `/var/lib/apt/lists`)
 so adding a package re-downloads only the new/changed `.deb` files, not the
-whole set. Installs that must track fast-moving upstream releases (like
-OpenCode and uv) belong in the volatile layer below `ARG CACHEBUST`. See
-`AGENTS.md` for the details and the `docker-clean` gotcha that keeps this
-caching working.
+whole set. Installs that must track fast-moving upstream releases (OpenCode)
+belong in the volatile layer below `ARG CACHEBUST`; Node.js and uv live in
+their own unpinned layers that re-resolve their latest versions whenever the
+stable layer changes, without re-running on every rebuild. See `AGENTS.md` for
+the details and the `docker-clean` gotcha that keeps this caching working.
 
 ## Verification
 
 ```sh
 sh -n opencode-acp-docker                              # lint the launcher
-docker build --pull -t ddr-opencode \
-  --build-arg "CACHEBUST=$(date +%s)" .                # build the image
-docker run --rm --entrypoint bash ddr-opencode -c 'java -version; php -v; composer --version'
+./build.sh                                             # build the image
+./validate.sh                                          # validate toolchain in the container
 ```
+
+`./validate.sh` requires a working Docker environment and a built `ddr-opencode`
+image: it fails if either is missing, then verifies the toolchain assumptions
+(java, php, composer, node, python3, pip3, uv, uvx, opencode, php modules, and
+xdebug) inside the container.
