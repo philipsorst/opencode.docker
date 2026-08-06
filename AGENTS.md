@@ -10,8 +10,8 @@ sandboxed, general-purpose dev container.
 
 - `Dockerfile` - builds the `ddr-opencode` image: Ubuntu 26.04 (resolute) LTS
   base, OpenJDK 25 (LTS), PHP 8.5 + xdebug + `pgsql`/`pdo_pgsql`, Composer,
-  common CLI tools, and the OpenCode binary. Zero third-party package repos
-  (until PHP 8.6 needs ondrej/sury).
+  `uv` (`uvx`), common CLI tools, and the OpenCode binary. Zero third-party
+  package repos (until PHP 8.6 needs ondrej/sury).
 - `opencode-acp-docker` - POSIX `sh` launcher (the user-facing entry point).
   Ensures the image exists/fresh, validates the host OpenCode auth, then
   `docker run`s the ACP server against the current directory.
@@ -27,6 +27,9 @@ sandboxed, general-purpose dev container.
   and match `home/opencode` ownership inside the image.
 - The image ENTRYPOINT is `opencode`. To run custom commands for verification
   use `docker run --rm --entrypoint bash ... <image> -c '...'`.
+- Ubuntu 26.04 has no `uv` package in its archives, so `uv`/`uvx` are installed
+  via the official Astral installer (`https://astral.sh/uv/install.sh`) into
+  `/usr/local/bin` in the volatile layer (unpinned, like OpenCode).
 - Xdebug is installed with `xdebug.mode=off` (passive). On-demand enablement:
   `XDEBUG_MODE=coverage phpunit`, `XDEBUG_MODE=debug php ...`, etc. The mode
   setting lives in `/etc/php/8.5/mods-available/xdebug.ini`.
@@ -57,14 +60,15 @@ The Dockerfile is split into layers keyed to how often their inputs change:
    `ubuntu:26.04` tag digest moves (launcher passes `--pull`).
 2. **User setup layer** - `opencode` user, XDG dirs, perms. Static, cached.
 3. **Volatile layer** - starts at `ARG CACHEBUST` (injected by the launcher as
-   `--build-arg CACHEBUST=$(date +%s)`). Currently the only instruction is the
-   unpinned OpenCode installer, so a fresh OpenCode is fetched on every
-   launcher-triggered rebuild. `ARG CACHEBUST` must be *referenced* inside the
-   RUN (`echo "cachebust=${CACHEBUST}"`) or it will not invalidate the cache.
+   `--build-arg CACHEBUST=$(date +%s)`). Currently the only instructions are the
+   unpinned OpenCode and uv installers, so a fresh OpenCode and uv are fetched
+   on every launcher-triggered rebuild. `ARG CACHEBUST` must be *referenced*
+   inside the RUN (`echo "cachebust=${CACHEBUST}"`) or it will not invalidate
+   the cache.
 
-Do not re-pin OpenCode to a version: the whole point of the volatile layer is
-tracking the fast-moving upstream releases. Do not move slow-moving installs
-(apt, composer) into the volatile layer.
+Do not re-pin OpenCode or uv to a version: the whole point of the volatile
+layer is tracking the fast-moving upstream releases. Do not move slow-moving
+installs (apt, composer) into the volatile layer.
 
 The apt RUN in the stable layer uses two BuildKit cache mounts
 (`--mount=type=cache` on `/var/cache/apt` and `/var/lib/apt/lists`) so adding a
@@ -97,6 +101,7 @@ docker run --rm --entrypoint bash --user 1000:1000 ddr-opencode -c '
   java -version 2>&1 | head -1
   php -v | head -1
   composer --version | head -1
+  uv --version
   php -m | grep -icE "^(curl|mbstring|dom|xml|zip|intl|sqlite3|bcmath|gd|pgsql|pdo_pgsql)$"
   php -r "var_dump(extension_loaded(\"xdebug\"), ini_get(\"xdebug.mode\"));"
 '

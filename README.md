@@ -14,6 +14,7 @@ general-purpose toolchain:
 - **PHP 8.5** with `curl`, `mbstring`, `xml`, `zip`, `intl`, `sqlite3`,
   `pgsql`/`pdo_pgsql`, `bcmath`, `gd`, and **Xdebug** (passive by default)
 - **Composer** 2.x
+- **uv** (Python package manager) with its `uvx` companion
 - CLI tools: `git`, `curl`, `ripgrep`, `openssh-client`, `unzip`, `zip`, `bash`
 
 No third-party package repositories are used while Ubuntu ships the current
@@ -78,7 +79,7 @@ block) — they are cached and only reinstalled when the base image updates. The
 apt step uses BuildKit cache mounts (`/var/cache/apt` and `/var/lib/apt/lists`)
 so adding a package re-downloads only the new/changed `.deb` files, not the
 whole set. Installs that must track fast-moving upstream releases (like
-OpenCode itself) belong in the volatile layer below `ARG CACHEBUST`. See
+OpenCode and uv) belong in the volatile layer below `ARG CACHEBUST`. See
 `AGENTS.md` for the details and the `docker-clean` gotcha that keeps this
 caching working.
 

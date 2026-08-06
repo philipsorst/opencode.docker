@@ -68,7 +68,11 @@ RUN echo "cachebust=${CACHEBUST}" \
     && curl -fsSL https://opencode.ai/install \
         | bash -s -- --no-modify-path \
     && install -m 0755 /root/.opencode/bin/opencode /usr/local/bin/opencode \
-    && rm -rf /root/.opencode
+    && rm -rf /root/.opencode \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && install -m 0755 /root/.local/bin/uv /usr/local/bin/uv \
+    && install -m 0755 /root/.local/bin/uvx /usr/local/bin/uvx \
+    && rm -rf /root/.local/bin
 
 ENV HOME=/home/opencode \
     XDG_CONFIG_HOME=/home/opencode/.config \
