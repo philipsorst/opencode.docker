@@ -16,6 +16,7 @@ container_home=/home/opencode
 container_opencode_dir="$container_home/.local/share/opencode"
 container_opencode_state_dir="$container_home/.local/state/opencode"
 image="${OPENCODE_DOCKER_IMAGE:-ddr-opencode}"
+network="${OPENCODE_DOCKER_NETWORK:-development}"
 
 docker_bin="${DOCKER_BIN:-}"
 if [ -z "$docker_bin" ]; then
@@ -80,6 +81,7 @@ gid=$(id -g)
 mkdir -p "$host_opencode_state_dir"
 
 exec "$docker_bin" run --rm --init -i \
+    --network "$network" \
     --user "$uid:$gid" \
     --workdir "$project_dir" \
     --mount "type=bind,src=$project_dir,dst=$project_dir" \

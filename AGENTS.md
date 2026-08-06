@@ -9,8 +9,9 @@ server, used as the backend for JetBrains/other IDE integrations) inside a
 sandboxed, general-purpose dev container.
 
 - `Dockerfile` - builds the `ddr-opencode` image: Ubuntu 26.04 (resolute) LTS
-  base, OpenJDK 25 (LTS), PHP 8.5 + xdebug, Composer, common CLI tools, and the
-  OpenCode binary. Zero third-party package repos (until PHP 8.6 needs ondrej/sury).
+  base, OpenJDK 25 (LTS), PHP 8.5 + xdebug + `pgsql`/`pdo_pgsql`, Composer,
+  common CLI tools, and the OpenCode binary. Zero third-party package repos
+  (until PHP 8.6 needs ondrej/sury).
 - `opencode-acp-docker` - POSIX `sh` launcher (the user-facing entry point).
   Ensures the image exists/fresh, validates the host OpenCode auth, then
   `docker run`s the ACP server against the current directory.
@@ -39,6 +40,13 @@ sandboxed, general-purpose dev container.
 - `php` resolves to 8.5 via a conditional symlink (`if [ ! -e /usr/bin/php ];
   then ln -s php8.5 /usr/bin/php; fi`) - Ubuntu does not always register the
   unversioned binary when only `php8.5-*` packages are installed.
+- Postgres support comes from `php8.5-pgsql` (enables `pgsql` + `pdo_pgsql`),
+  so the agent can run tests against a Postgres published on a shared Docker
+  network.
+- At runtime the container joins the `development` Docker network (see
+  "How the launcher works"), so tests can reach sibling stack services (e.g.
+  a compose Postgres) by their compose service/network name instead of
+  `localhost`.
 
 ## Build cache strategy (do not regress)
 
@@ -58,6 +66,22 @@ Do not re-pin OpenCode to a version: the whole point of the volatile layer is
 tracking the fast-moving upstream releases. Do not move slow-moving installs
 (apt, composer) into the volatile layer.
 
+The apt RUN in the stable layer uses two BuildKit cache mounts
+(`--mount=type=cache` on `/var/cache/apt` and `/var/lib/apt/lists`) so adding a
+package to the list does not re-download the other packages. Two gotchas keep
+this working:
+
+- Ubuntu 26.04 defaults `APT::Keep-Downloaded-Packages` to `0` and ships
+  `docker-clean` in `/etc/apt/apt.conf.d`, whose post-invoke hooks delete
+  `/var/cache/apt/archives/*.deb` after every `apt-get update`/`dpkg` - that
+  would empty the cache mount. The Dockerfile removes it (`rm -f
+  /etc/apt/apt.conf.d/docker-clean`) first; do not rely on the setting alone
+  and do not re-add a lists/archives cleanup (`rm -rf /var/lib/apt/lists/*`)
+  inside the RUN, or the cache is lost.
+- Cache mounts persist in the BuildKit builder store until `docker builder
+  prune`. They are not part of the image layers; the `ubuntu:26.04` base itself
+  is only re-pulled because the launcher passes `--pull`.
+
 ## Verification
 
 Build (mirror the launcher exactly):
@@ -73,7 +97,7 @@ docker run --rm --entrypoint bash --user 1000:1000 ddr-opencode -c '
   java -version 2>&1 | head -1
   php -v | head -1
   composer --version | head -1
-  php -m | grep -icE "^(curl|mbstring|dom|xml|zip|intl|sqlite3|bcmath|gd)$"
+  php -m | grep -icE "^(curl|mbstring|dom|xml|zip|intl|sqlite3|bcmath|gd|pgsql|pdo_pgsql)$"
   php -r "var_dump(extension_loaded(\"xdebug\"), ini_get(\"xdebug.mode\"));"
 '
 ```
@@ -94,8 +118,9 @@ The launcher cannot run end-to-end unless the host has
    it aborts with an error.
 4. Runs `docker run --rm --init -i --user $uid:$gid --workdir <cwd>` with the
    project dir and the OpenCode data + state dirs bind-mounted, XDG env vars
-   pointing at `/home/opencode`, and `OPENCODE_DISABLE_AUTOUPDATE=true`,
-   invoking `acp`.
+   pointing at `/home/opencode`, `OPENCODE_DISABLE_AUTOUPDATE=true`, and
+   `--network "$network"` (the `development` network by default, overridable
+   via `OPENCODE_DOCKER_NETWORK`), invoking `acp`.
 
 ## Conventions
 

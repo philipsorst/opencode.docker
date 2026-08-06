@@ -12,7 +12,7 @@ general-purpose toolchain:
 
 - **OpenJDK 25** (LTS)
 - **PHP 8.5** with `curl`, `mbstring`, `xml`, `zip`, `intl`, `sqlite3`,
-  `bcmath`, `gd`, and **Xdebug** (passive by default)
+  `pgsql`/`pdo_pgsql`, `bcmath`, `gd`, and **Xdebug** (passive by default)
 - **Composer** 2.x
 - CLI tools: `git`, `curl`, `ripgrep`, `openssh-client`, `unzip`, `zip`, `bash`
 
@@ -57,16 +57,30 @@ Environment variables (all optional):
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `OPENCODE_DOCKER_IMAGE` | `ddr-opencode` | Image name to build/run |
+| `OPENCODE_DOCKER_NETWORK` | `development` | Docker network the container joins at run time |
 | `DOCKER_BIN` | auto-detected | Absolute path to the Docker CLI |
 | `XDG_DATA_HOME` | `$HOME/.local/share` | Host "opencode" data dir to share |
 | `XDG_STATE_HOME` | `$HOME/.local/state` | Host "opencode" state dir to share (sessions/history) |
 
+## Reaching your stack's services
+
+By default the container joins the `development` Docker network, so the agent
+can run tests directly against sibling services (e.g. a compose Postgres) using
+their compose service name instead of `localhost` — for example
+`pgsql://user:password@postgres/database`. The container still does not have
+access to your host shell or files outside the mounted project. If your stack
+uses a different network name, set `OPENCODE_DOCKER_NETWORK` to it.
+
 ## Extending the image
 
 Add packages in the stable layer of the `Dockerfile` (the `apt-get install`
-block) — they are cached and only reinstalled when the base image updates.
-Installs that must track fast-moving upstream releases (like OpenCode itself)
-belong in the volatile layer below `ARG CACHEBUST`.
+block) — they are cached and only reinstalled when the base image updates. The
+apt step uses BuildKit cache mounts (`/var/cache/apt` and `/var/lib/apt/lists`)
+so adding a package re-downloads only the new/changed `.deb` files, not the
+whole set. Installs that must track fast-moving upstream releases (like
+OpenCode itself) belong in the volatile layer below `ARG CACHEBUST`. See
+`AGENTS.md` for the details and the `docker-clean` gotcha that keeps this
+caching working.
 
 ## Verification
 

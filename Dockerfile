@@ -5,7 +5,10 @@ ARG OPENCODE_GID=1000
 
 USER root
 
-RUN DEBIAN_FRONTEND=noninteractive apt-get update \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean \
+    && DEBIAN_FRONTEND=noninteractive apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         bash \
         ca-certificates \
@@ -26,10 +29,10 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update \
         php8.5-zip \
         php8.5-intl \
         php8.5-sqlite3 \
+        php8.5-pgsql \
         php8.5-bcmath \
         php8.5-gd \
         composer \
-    && rm -rf /var/lib/apt/lists/* \
     && if [ ! -e /usr/bin/php ]; then ln -s php8.5 /usr/bin/php; fi \
     && printf '%s\n' 'zend_extension=xdebug.so' 'xdebug.mode=off' > /etc/php/8.5/mods-available/xdebug.ini
 
