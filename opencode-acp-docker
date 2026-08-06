@@ -1,0 +1,95 @@
+#!/bin/sh
+set -eu
+
+if [ -z "${HOME:-}" ]; then
+    printf '%s\n' 'HOME must be set for the OpenCode auth mount.' >&2
+    exit 1
+fi
+
+project_dir=$(pwd)
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+host_data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+host_opencode_dir="$host_data_home/opencode"
+host_state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
+host_opencode_state_dir="$host_state_home/opencode"
+container_home=/home/opencode
+container_opencode_dir="$container_home/.local/share/opencode"
+container_opencode_state_dir="$container_home/.local/state/opencode"
+image="${OPENCODE_DOCKER_IMAGE:-ddr-opencode}"
+
+docker_bin="${DOCKER_BIN:-}"
+if [ -z "$docker_bin" ]; then
+    if [ -x /usr/bin/docker ]; then
+        docker_bin=/usr/bin/docker
+    elif [ -x /usr/local/bin/docker ]; then
+        docker_bin=/usr/local/bin/docker
+    else
+        docker_bin=$(command -v docker || true)
+    fi
+fi
+
+if [ -z "$docker_bin" ]; then
+    printf '%s\n' 'Docker CLI not found. Set DOCKER_BIN to its absolute path.' >&2
+    exit 127
+fi
+
+image_needs_rebuild=false
+if "$docker_bin" image inspect "$image" >/dev/null 2>&1; then
+    created=$("$docker_bin" image inspect --format '{{.Created}}' "$image" 2>/dev/null) || created=""
+    if [ -n "$created" ]; then
+        created_epoch=""
+        if date -d "$created" +%s >/dev/null 2>&1; then
+            created_epoch=$(date -d "$created" +%s)
+        else
+            created_norm=$(printf '%s' "$created" | sed 's/\.[0-9]*Z$/Z/; s/Z$//')
+            if date -j -f '%Y-%m-%dT%H:%M:%S' "$created_norm" +%s >/dev/null 2>&1; then
+                created_epoch=$(date -j -f '%Y-%m-%dT%H:%M:%S' "$created_norm" +%s)
+            fi
+        fi
+        if [ -n "$created_epoch" ] && [ "$created_epoch" -lt "$(( $(date +%s) - 86400 ))" ]; then
+            image_needs_rebuild=true
+        fi
+    fi
+else
+    image_needs_rebuild=true
+fi
+
+if [ "$image_needs_rebuild" = true ]; then
+    if [ ! -f "$script_dir/Dockerfile" ]; then
+        printf 'Image %s not found and no Dockerfile at %s to build it.\n' "$image" "$script_dir/Dockerfile" >&2
+        exit 1
+    fi
+    printf 'Image %s is missing or older than one day; rebuilding it from %s ...\n' "$image" "$script_dir/Dockerfile"
+    "$docker_bin" build --pull -t "$image" --build-arg "CACHEBUST=$(date +%s)" "$script_dir"
+fi
+
+if [ ! -d "$host_opencode_dir" ]; then
+    printf 'OpenCode data directory not found: %s\n' "$host_opencode_dir" >&2
+    exit 1
+fi
+
+if [ ! -f "$host_opencode_dir/auth.json" ]; then
+    printf 'OpenCode auth file not found: %s/auth.json\n' "$host_opencode_dir" >&2
+    printf '%s\n' 'Authenticate OpenCode on the host before using this ACP launcher.' >&2
+    exit 1
+fi
+
+uid=$(id -u)
+gid=$(id -g)
+
+mkdir -p "$host_opencode_state_dir"
+
+exec "$docker_bin" run --rm --init -i \
+    --user "$uid:$gid" \
+    --workdir "$project_dir" \
+    --mount "type=bind,src=$project_dir,dst=$project_dir" \
+    --mount "type=bind,src=$host_opencode_dir,dst=$container_opencode_dir" \
+    --mount "type=bind,src=$host_opencode_state_dir,dst=$container_opencode_state_dir" \
+    --env "HOME=$container_home" \
+    --env "XDG_CONFIG_HOME=$container_home/.config" \
+    --env "XDG_DATA_HOME=$container_home/.local/share" \
+    --env "XDG_STATE_HOME=$container_home/.local/state" \
+    --env "XDG_CACHE_HOME=$container_home/.cache" \
+    --env OPENCODE_DISABLE_AUTOUPDATE=true \
+    "$image" \
+    acp
