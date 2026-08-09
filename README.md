@@ -67,6 +67,26 @@ Environment variables (all optional):
 | `XDG_DATA_HOME` | `$HOME/.local/share` | Host "opencode" data dir to share |
 | `XDG_STATE_HOME` | `$HOME/.local/state` | Host "opencode" state dir to share (sessions/history) |
 
+## Sharing host caches
+
+To keep package installs fast across runs, the launcher auto-discovers host
+cache directories from the environment and bind-mounts them read-write into the
+container at the locations the tools expect (aligned with the container's
+`HOME` and XDG variables, so no extra config is needed inside).
+
+For each tool, the host dir is taken from the tool's own environment variable
+when set (`UV_CACHE_DIR`, `PIP_CACHE_DIR`, `NPM_CONFIG_CACHE`,
+`YARN_CACHE_FOLDER`, `COMPOSER_CACHE_DIR`, `GRADLE_USER_HOME`, `CARGO_HOME`,
+`GOMODCACHE`, `NUGET_PACKAGES`, `PUB_CACHE`, `HF_HOME`), otherwise from the
+XDG-aware default under `$XDG_CACHE_HOME`/`$XDG_DATA_HOME` or `$HOME`.
+Explicitly configured dirs are created if missing; default paths are only
+mounted when they already exist. The launcher prints a summary of what was
+mounted. Covered tools: uv, pip, composer, yarn, huggingface, npm, gradle,
+maven, cargo, go, nuget, pub, and both pnpm store layouts.
+
+Mounts are read-write, so the container can mutate these directories — same
+trust model as the project and state mounts.
+
 ## Reaching your stack's services
 
 By default the container joins the `development` Docker network, so the agent

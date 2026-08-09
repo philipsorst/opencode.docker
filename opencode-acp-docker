@@ -80,6 +80,82 @@ gid=$(id -g)
 
 mkdir -p "$host_opencode_state_dir"
 
+host_cache_home="${XDG_CACHE_HOME:-$HOME/.cache}"
+container_cache_dir=$container_home/.cache
+container_data_dir=$container_home/.local/share
+
+cache_mounts=
+mounted_dsts=
+mounted_caches=
+
+cache_mount() {
+    cache_host_dir=$1
+    mount_dst=$2
+    mount_label=$3
+    if [ -z "$cache_host_dir" ] || [ "$cache_host_dir" = / ]; then
+        return 0
+    fi
+    case "$cache_host_dir" in
+        "$project_dir"|"$project_dir"/*) return 0 ;;
+    esac
+    case " $mounted_dsts " in
+        *" $mount_dst "*) return 0 ;;
+    esac
+    if [ ! -d "$cache_host_dir" ]; then
+        mkdir -p "$cache_host_dir" 2>/dev/null || return 0
+    fi
+    cache_mounts="$cache_mounts
+--mount
+type=bind,src=$cache_host_dir,dst=$mount_dst"
+    mounted_dsts="$mounted_dsts $mount_dst"
+    mounted_caches="$mounted_caches $mount_label($cache_host_dir)"
+}
+
+add_tool_cache() {
+    tool_label=$1
+    tool_dst=$2
+    tool_env=$3
+    shift 3
+    tool_host_dir=
+    if [ -n "$tool_env" ]; then
+        eval 'tool_host_dir=${'"$tool_env"':-}'
+        case "$tool_host_dir" in
+            /*) ;;
+            *) tool_host_dir= ;;
+        esac
+    fi
+    if [ -z "$tool_host_dir" ]; then
+        for candidate in "$@"; do
+            if [ -d "$candidate" ]; then
+                tool_host_dir=$candidate
+                break
+            fi
+        done
+    fi
+    cache_mount "$tool_host_dir" "$tool_dst" "$tool_label"
+}
+
+add_tool_cache uv "$container_cache_dir/uv" UV_CACHE_DIR "$host_cache_home/uv"
+add_tool_cache pip "$container_cache_dir/pip" PIP_CACHE_DIR "$host_cache_home/pip"
+add_tool_cache composer "$container_cache_dir/composer" COMPOSER_CACHE_DIR "$host_cache_home/composer"
+add_tool_cache yarn "$container_cache_dir/yarn" YARN_CACHE_FOLDER "$host_cache_home/yarn"
+add_tool_cache huggingface "$container_cache_dir/huggingface" HF_HOME "$host_cache_home/huggingface"
+add_tool_cache npm "$container_home/.npm" NPM_CONFIG_CACHE "$HOME/.npm"
+add_tool_cache gradle "$container_home/.gradle" GRADLE_USER_HOME "$HOME/.gradle"
+add_tool_cache maven "$container_home/.m2" "" "$HOME/.m2"
+add_tool_cache cargo "$container_home/.cargo" CARGO_HOME "$HOME/.cargo"
+add_tool_cache go "$container_home/go/pkg/mod" GOMODCACHE "$HOME/go/pkg/mod"
+add_tool_cache nuget "$container_home/.nuget/packages" NUGET_PACKAGES "$HOME/.nuget/packages"
+add_tool_cache pub "$container_home/.pub-cache" PUB_CACHE "$HOME/.pub-cache"
+add_tool_cache pnpm-store "$container_data_dir/pnpm/store" "" "$host_data_home/pnpm/store"
+add_tool_cache pnpm-cache "$container_cache_dir/pnpm" "" "$host_cache_home/pnpm"
+
+if [ -n "$mounted_caches" ]; then
+    printf 'Mounting host caches:%s\n' "$mounted_caches"
+fi
+
+IFS='
+'
 exec "$docker_bin" run --rm --init -i \
     --network "$network" \
     --user "$uid:$gid" \
@@ -87,6 +163,7 @@ exec "$docker_bin" run --rm --init -i \
     --mount "type=bind,src=$project_dir,dst=$project_dir" \
     --mount "type=bind,src=$host_opencode_dir,dst=$container_opencode_dir" \
     --mount "type=bind,src=$host_opencode_state_dir,dst=$container_opencode_state_dir" \
+    $cache_mounts \
     --env "HOME=$container_home" \
     --env "XDG_CONFIG_HOME=$container_home/.config" \
     --env "XDG_DATA_HOME=$container_home/.local/share" \

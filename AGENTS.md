@@ -56,6 +56,18 @@ sandboxed, general-purpose dev container.
   `mkdir -p`'d on the host if missing). The launcher aborts only if the data
   directory or `auth.json` is missing. Config and cache are intentionally NOT
   mounted (ephemeral per-container).
+- The launcher also auto-discovers host tool caches (uv, pip, composer, yarn,
+  huggingface, npm, gradle, maven, cargo, go, nuget, pub, both pnpm store
+  layouts) and bind-mounts them read-write at the container's default tool
+  locations (which align with the container `HOME`/XDG env vars, so no extra
+  env is passed). Per tool, the host dir comes from the tool's own env var
+  (`UV_CACHE_DIR`, `PIP_CACHE_DIR`, `NPM_CONFIG_CACHE`, `YARN_CACHE_FOLDER`,
+  `COMPOSER_CACHE_DIR`, `GRADLE_USER_HOME`, `CARGO_HOME`, `GOMODCACHE`,
+  `NUGET_PACKAGES`, `PUB_CACHE`, `HF_HOME`) when set, else the XDG-aware
+  default; env-var dirs are created if missing, default paths are mounted only
+  if they already exist. Mount args are accumulated newline-separated and
+  word-split in the `docker run` line with `IFS` set to a newline, so paths
+  with spaces survive.
 - `php` resolves to 8.5 via a conditional symlink (`if [ ! -e /usr/bin/php ];
   then ln -s php8.5 /usr/bin/php; fi`) - Ubuntu does not always register the
   unversioned binary when only `php8.5-*` packages are installed.
