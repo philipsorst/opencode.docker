@@ -52,10 +52,14 @@ sandboxed, general-purpose dev container.
 - The launcher mounts the host `$XDG_DATA_HOME/opencode` (default
   `~/.local/share/opencode`) into the container so OpenCode reuses the host's
   `auth.json`, and mounts the host `$XDG_STATE_HOME/opencode` (default
-  `~/.local/state/opencode`) so sessions/history persist across runs (it is
+  `~/.local/state/opencode`) so   sessions/history persist across runs (it is
   `mkdir -p`'d on the host if missing). The launcher aborts only if the data
   directory or `auth.json` is missing. Config and cache are intentionally NOT
-  mounted (ephemeral per-container).
+  mounted (ephemeral per-container), with one exception: if
+  `$XDG_CONFIG_HOME/opencode/opencode.docker.json` exists on the host (beside
+  `opencode.json`), it is bind-mounted read-only into the container as
+  `opencode.json`, so the sandbox gets Docker-specific settings without
+  mounting the host's real config.
 - The launcher also auto-discovers host tool caches (uv, pip, composer, yarn,
   huggingface, npm, gradle, maven, cargo, go, nuget, pub, both pnpm store
   layouts) and bind-mounts them read-write at the container's default tool

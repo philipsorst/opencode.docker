@@ -12,7 +12,10 @@ host_data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
 host_opencode_dir="$host_data_home/opencode"
 host_state_home="${XDG_STATE_HOME:-$HOME/.local/state}"
 host_opencode_state_dir="$host_state_home/opencode"
+host_config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+host_opencode_config_dir="$host_config_home/opencode"
 container_home=/home/opencode
+container_opencode_config_dir="$container_home/.config/opencode"
 container_opencode_dir="$container_home/.local/share/opencode"
 container_opencode_state_dir="$container_home/.local/state/opencode"
 image="${OPENCODE_DOCKER_IMAGE:-ddr-opencode}"
@@ -79,6 +82,14 @@ uid=$(id -u)
 gid=$(id -g)
 
 mkdir -p "$host_opencode_state_dir"
+
+config_mounts=
+if [ -f "$host_opencode_config_dir/opencode.docker.json" ]; then
+    printf 'Mounting host OpenCode config (as opencode.json): %s/opencode.docker.json\n' "$host_opencode_config_dir" >&2
+    config_mounts="$config_mounts
+--mount
+type=bind,src=$host_opencode_config_dir/opencode.docker.json,dst=$container_opencode_config_dir/opencode.json,ro"
+fi
 
 host_cache_home="${XDG_CACHE_HOME:-$HOME/.cache}"
 container_cache_dir=$container_home/.cache
@@ -163,6 +174,7 @@ exec "$docker_bin" run --rm --init -i \
     --mount "type=bind,src=$project_dir,dst=$project_dir" \
     --mount "type=bind,src=$host_opencode_dir,dst=$container_opencode_dir" \
     --mount "type=bind,src=$host_opencode_state_dir,dst=$container_opencode_state_dir" \
+    $config_mounts \
     $cache_mounts \
     --env "HOME=$container_home" \
     --env "XDG_CONFIG_HOME=$container_home/.config" \

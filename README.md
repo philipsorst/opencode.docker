@@ -53,7 +53,24 @@ your host OpenCode credentials instead of requiring a separate login, and your
 OpenCode state (`sessions`, history) is persisted in
 `$XDG_STATE_HOME/opencode` (`~/.local/state/opencode` by default) so sessions
 survive between runs. Config and cache stay inside the container and are
-discarded on each run.
+discarded on each run — except for an optional Docker-specific config, below.
+
+### Docker-specific configuration
+
+If you want the sandbox to use different OpenCode settings than your host, put
+them in `opencode.docker.json` in your host config directory, next to your
+regular `opencode.json`:
+
+```
+$XDG_CONFIG_HOME/opencode/opencode.docker.json
+(~/.config/opencode/opencode.docker.json by default)
+```
+
+When that file exists, the launcher bind-mounts it **read-only** into the
+container as `opencode.json`, so the agent runs with your Docker-specific
+settings. Your real `opencode.json` is never mounted — the host config stays
+private and only this deliberately-named file is shared. If it doesn't exist,
+the container's config is ephemeral as usual.
 
 ## Configuration
 
@@ -66,6 +83,7 @@ Environment variables (all optional):
 | `DOCKER_BIN` | auto-detected | Absolute path to the Docker CLI |
 | `XDG_DATA_HOME` | `$HOME/.local/share` | Host "opencode" data dir to share |
 | `XDG_STATE_HOME` | `$HOME/.local/state` | Host "opencode" state dir to share (sessions/history) |
+| `XDG_CONFIG_HOME` | `$HOME/.config` | Host "opencode" dir scanned for `opencode.docker.json` |
 
 ## Sharing host caches
 
