@@ -33,7 +33,7 @@ fi
 
 if ! "$docker_bin" image inspect "$image" >/dev/null 2>&1; then
     printf 'ERROR: docker image %s is not built.\n' "$image"
-    printf '      build it with: %s build --pull -t %s --build-arg CACHEBUST=$(date +%%s) %s\n' "$docker_bin" "$image" "$script_dir"
+    printf '      build it with: %s build --pull -t %s --build-arg OPENCODE_UID=$(id -u) --build-arg OPENCODE_GID=$(id -g) --build-arg CACHEBUST=$(date +%%s) %s\n' "$docker_bin" "$image" "$script_dir"
     exit 1
 fi
 
@@ -69,6 +69,14 @@ if "$docker_bin" run --rm --entrypoint bash --user 1000:1000 "$image" -c '
     echo "uv: $(uv --version)"
     echo "uvx: $(uvx --version)"
     echo "opencode: $(opencode --version)"
+    echo "jq: $(jq --version)"
+    echo "gcc: $(gcc --version | head -1)"
+    echo "cmake: $(cmake --version | head -1)"
+    echo "pkg-config: $(pkg-config --version)"
+    echo "git-lfs: $(git lfs version | head -1)"
+    echo "psql: $(psql --version | head -1)"
+    echo "sqlite3: $(sqlite3 --version | head -1)"
+    echo "shellcheck: $(shellcheck --version | sed -n "s/^version: /v/p")"
     echo "php modules: $(php -m | grep -icE "^(curl|mbstring|dom|xml|zip|intl|sqlite3|bcmath|gd|pgsql|pdo_pgsql)$") of 11"
     php -r "echo \"php xdebug: \".(extension_loaded(\"xdebug\") ? \"present\" : \"missing\").\" mode=\".var_export(ini_get(\"xdebug.mode\"), true).PHP_EOL;"
 '; then

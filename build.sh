@@ -22,4 +22,7 @@ if [ -z "$docker_bin" ]; then
     exit 1
 fi
 
-"$docker_bin" build --pull -t "$image" --build-arg "CACHEBUST=$(date +%s)" "$script_dir"
+"$docker_bin" build --pull -t "$image" \
+    --build-arg "OPENCODE_UID=$(id -u)" \
+    --build-arg "OPENCODE_GID=$(id -g)" \
+    --build-arg "CACHEBUST=$(date +%s)" "$script_dir"

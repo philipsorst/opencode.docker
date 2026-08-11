@@ -11,8 +11,8 @@ sandboxed, general-purpose dev container.
 - `Dockerfile` - builds the `ddr-opencode` image: Ubuntu 26.04 (resolute) LTS
   base, OpenJDK 25 (LTS), Node.js (active LTS), Python 3.14 (the distro
   `python3`), PHP 8.5 + xdebug + `pgsql`/`pdo_pgsql`, Composer, `uv` (`uvx`),
-  common CLI tools, and the OpenCode binary. Zero third-party package repos
-  (until PHP 8.6 needs ondrej/sury).
+  a native build toolchain, common CLI tools, and the OpenCode binary. Zero
+  third-party package repos (until PHP 8.6 needs ondrej/sury).
 - `opencode-acp-docker` - POSIX `sh` launcher (the user-facing entry point).
   Ensures the image exists/fresh, validates the host OpenCode auth, then
   `docker run`s the ACP server against the current directory.
@@ -29,8 +29,13 @@ sandboxed, general-purpose dev container.
   `groupadd -o --gid "${OPENCODE_GID}"` + `useradd -o ...`. Do not remove `-o`.
 - The host project dir is bind-mounted read-write and the container runs with
   `--user "$(id -u):$(id -g)"` from the launcher, so files the agent creates
-  belong to the host user. `OPENCODE_UID`/`OPENCODE_GID` args default to `1000`
-  and match `home/opencode` ownership inside the image.
+  belong to the host user. The launcher builds the image with
+  `--build-arg OPENCODE_UID=$(id -u) --build-arg OPENCODE_GID=$(id -g)` (the
+  `Dockerfile` defaults remain `1000` for manual builds), and the image labels
+  `org.opencode.docker.uid`/`org.opencode.docker.gid` record what it was built
+  for: the launcher inspects them and rebuilds on mismatch, so `/home/opencode`
+  is always writable by the runtime `--user`. Keep the labels when touching the
+  user setup.
 - The image ENTRYPOINT is `opencode`. To run custom commands for verification
   use `docker run --rm --entrypoint bash ... <image> -c '...'`.
 - Ubuntu 26.04 has no `uv` package in its archives, so `uv`/`uvx` are installed
@@ -46,6 +51,15 @@ sandboxed, general-purpose dev container.
   bypass PEP 668 to pip-install globally: the image intentionally keeps the
   system interpreter protected so agents install deps with `uv` or in a
   `venv`.
+- The stable apt layer also ships a native build toolchain (`build-essential`,
+  `cmake`, `pkg-config`), `git-lfs`, `postgresql-client` (psql), `sqlite3`,
+  `shellcheck`, and network debuggers (`iputils-ping`, `dnsutils`,
+  `netcat-openbsd`). The user-setup layer seeds `/home/opencode/.gitconfig`
+  (generic identity, `init.defaultBranch=main`, `safe.directory = *`) and the
+  image exports `LANG`/`LC_ALL=C.UTF-8`; keep all of these in their existing
+  layers (never under `CACHEBUST`). The launcher forwards the host git identity
+  as `GIT_AUTHOR_*`/`GIT_COMMITTER_*` env when the host has one (overrides the
+  seeded identity).
 - Xdebug is installed with `xdebug.mode=off` (passive). On-demand enablement:
   `XDEBUG_MODE=coverage phpunit`, `XDEBUG_MODE=debug php ...`, etc. The mode
   setting lives in `/etc/php/8.5/mods-available/xdebug.ini`.
@@ -139,8 +153,10 @@ Smoke-test / validate the toolchain:
 ```
 
 `./build.sh` runs the same `docker build --pull -t <image> --build-arg
-"CACHEBUST=$(date +%s)"` command the launcher uses (honoring `OPENCODE_DOCKER_IMAGE`
-and `DOCKER_BIN`), so a fresh OpenCode is fetched on every build.
+"OPENCODE_UID=$(id -u)" --build-arg "OPENCODE_GID=$(id -g)" --build-arg
+"CACHEBUST=$(date +%s)"` command the launcher uses (honoring
+`OPENCODE_DOCKER_IMAGE` and `DOCKER_BIN`), so a fresh OpenCode is fetched on
+every build.
 
 `./validate.sh` requires a working Docker environment and a built image: it
 lints the launcher, resolves the node active LTS from nodejs.org as a
@@ -155,15 +171,18 @@ The launcher cannot run end-to-end unless the host has
 
 1. Resolves Docker binary (`DOCKER_BIN` override, then common paths).
 2. Checks the image via `docker image inspect`. If absent, or if its
-   `{{.Created}}` timestamp is older than 86400 seconds, triggers a rebuild.
+   `{{.Created}}` timestamp is older than 86400 seconds, or if its
+   `org.opencode.docker.uid`/`org.opencode.docker.gid` labels don't match the
+   current user (images without the labels are left alone), triggers a rebuild.
    Timestamp is parsed with GNU `date -d`, falling back to BSD `date -j -f`
    (nanoseconds stripped) - keep both branches working (macOS support).
 3. If a rebuild is needed but no `Dockerfile` is found next to the script,
    it aborts with an error.
 4. Runs `docker run --rm --init -i --user $uid:$gid --workdir <cwd>` with the
    project dir and the OpenCode data + state dirs bind-mounted, XDG env vars
-   pointing at `/home/opencode`, `OPENCODE_DISABLE_AUTOUPDATE=true`, and
-   `--network "$network"` (the `development` network by default, overridable
+   pointing at `/home/opencode`, `OPENCODE_DISABLE_AUTOUPDATE=true`, the host
+   git identity (when configured) forwarded as `GIT_AUTHOR_*`/`GIT_COMMITTER_*`,
+   and `--network "$network"` (the `development` network by default, overridable
    via `OPENCODE_DOCKER_NETWORK`), invoking `acp`.
 
 ## Conventions

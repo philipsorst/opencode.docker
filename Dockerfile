@@ -3,6 +3,9 @@ FROM ubuntu:26.04
 ARG OPENCODE_UID=1000
 ARG OPENCODE_GID=1000
 
+LABEL org.opencode.docker.uid=${OPENCODE_UID} \
+      org.opencode.docker.gid=${OPENCODE_GID}
+
 USER root
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
@@ -11,12 +14,26 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && DEBIAN_FRONTEND=noninteractive apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         bash \
+        build-essential \
         ca-certificates \
+        cmake \
         curl \
+        dnsutils \
+        file \
         git \
+        git-lfs \
+        iputils-ping \
+        jq \
+        netcat-openbsd \
         openssh-client \
         passwd \
+        pkg-config \
+        postgresql-client \
         ripgrep \
+        rsync \
+        shellcheck \
+        sqlite3 \
+        tree \
         unzip \
         xz-utils \
         zip \
@@ -73,6 +90,7 @@ RUN groupadd -o --gid "${OPENCODE_GID}" opencode \
         /home/opencode/.local/state/opencode \
         /home/opencode/.cache/opencode \
         /workspace \
+    && printf '[init]\n\tdefaultBranch = main\n[safe]\n\tdirectory = *\n[user]\n\tname = OpenCode Agent\n\temail = agent@opencode.docker\n' > /home/opencode/.gitconfig \
     && chown -R "${OPENCODE_UID}:${OPENCODE_GID}" /home/opencode \
     && chmod -R a+rwX /home/opencode /workspace
 
@@ -88,6 +106,8 @@ ENV HOME=/home/opencode \
     XDG_DATA_HOME=/home/opencode/.local/share \
     XDG_STATE_HOME=/home/opencode/.local/state \
     XDG_CACHE_HOME=/home/opencode/.cache \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
     OPENCODE_DISABLE_AUTOUPDATE=true
 
 WORKDIR /workspace

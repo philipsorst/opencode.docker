@@ -19,7 +19,20 @@ general-purpose toolchain:
   `pgsql`/`pdo_pgsql`, `bcmath`, `gd`, and **Xdebug** (passive by default)
 - **Composer** 2.x
 - **uv** (Python package manager) with its `uvx` companion
-- CLI tools: `git`, `curl`, `ripgrep`, `openssh-client`, `unzip`, `zip`, `bash`
+- CLI tools: `git`, `git-lfs`, `jq`, `curl`, `ripgrep`, `openssh-client`,
+  `unzip`, `zip`, `bash`
+- Native build toolchain: `build-essential` (gcc/g++/make), `cmake`,
+  `pkg-config`, `file`, `rsync`, `tree`
+- Data tooling: `postgresql-client` (psql), `sqlite3`, `shellcheck`, and the
+  network debuggers `iputils-ping`, `dnsutils` (dig), `netcat-openbsd`
+
+The container runs with a UTF-8 locale (`LANG`/`LC_ALL=C.UTF-8`). `/home/opencode`
+is seeded with a minimal `.gitconfig` (`init.defaultBranch=main`,
+`safe.directory = *`, and a generic commit identity), so agents can clone and
+commit without setup. If the host has a git identity (`git config user.name`/
+`user.email`), the launcher instead forwards it as `GIT_AUTHOR_*`/`GIT_COMMITTER_*`
+environment variables — env overrides config, so container commits carry your
+name/email; the generic identity is the fallback.
 
 No third-party package repositories are used while Ubuntu ships the current
 PHP; the plan is to move PHP to the ondrej/sury repositories when a PHP 8.6
@@ -43,7 +56,8 @@ cd /path/to/your/project
 The launcher will:
 
 1. Check for the `ddr-opencode` image and build it if it does not exist.
-2. Rebuild it automatically if the image is older than one day, then
+2. Rebuild it automatically if the image is older than one day, or was built
+   for a different user ID (so `$HOME` stays writable for your account), then
    `docker run`s the OpenCode **ACP** server with your project as the working
    directory.
 
@@ -133,6 +147,10 @@ sh -n opencode-acp-docker                              # lint the launcher
 ./build.sh                                             # build the image
 ./validate.sh                                          # validate toolchain in the container
 ```
+
+`./build.sh` and the launcher build the image with `--build-arg OPENCODE_UID=$(id -u)
+--build-arg OPENCODE_GID=$(id -g)`, so the container user matches your host
+user; you only need the `CACHEBUST` argument when building by hand.
 
 `./validate.sh` requires a working Docker environment and a built `ddr-opencode`
 image: it fails if either is missing, then verifies the toolchain assumptions
