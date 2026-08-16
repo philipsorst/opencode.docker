@@ -77,6 +77,17 @@ RUN set -eu; \
     && install -m 0755 /root/.local/bin/uvx /usr/local/bin/uvx \
     && rm -rf /root/.local
 
+RUN set -eu; \
+    export SHELL=/bin/bash \
+    && export HOME=/tmp/pnpm-home \
+    && export PNPM_HOME=/usr/local/pnpm \
+    && mkdir -p "$HOME" \
+    && curl -fsSL https://get.pnpm.io/install.sh | sh - \
+    && ln -s "$PNPM_HOME/bin/pnpm" /usr/local/bin/pnpm \
+    && ln -s "$PNPM_HOME/bin/pnpx" /usr/local/bin/pnpx \
+    && pnpm --version \
+    && rm -rf "$HOME"
+
 RUN groupadd -o --gid "${OPENCODE_GID}" opencode \
     && useradd -o \
         --uid "${OPENCODE_UID}" \

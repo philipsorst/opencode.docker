@@ -11,8 +11,9 @@ sandboxed, general-purpose dev container.
 - `Dockerfile` - builds the `ddr-opencode` image: Ubuntu 26.04 (resolute) LTS
   base, OpenJDK 25 (LTS), Node.js (active LTS), Python 3.14 (the distro
   `python3`), PHP 8.5 + xdebug + `pgsql`/`pdo_pgsql`, Composer, `uv` (`uvx`),
-  a native build toolchain, common CLI tools, and the OpenCode binary. Zero
-  third-party package repos (until PHP 8.6 needs ondrej/sury).
+  pnpm (official standalone binary), a native build toolchain, common CLI
+  tools, and the OpenCode binary. Zero third-party package repos (until PHP
+  8.6 needs ondrej/sury).
 - `opencode-acp-docker` - POSIX `sh` launcher (the user-facing entry point).
   Ensures the image exists/fresh, validates the host OpenCode auth, then
   `docker run`s the ACP server against the current directory.
@@ -105,10 +106,18 @@ The Dockerfile is split into layers keyed to how often their inputs change:
    `composer`), php symlink, xdebug ini. Cached; refreshed only when the
    `ubuntu:26.04` tag digest moves (launcher passes `--pull`).
 2. **Fresh tooling layers** - one `RUN` each for unpinned Node.js (active LTS,
-   version resolved at build time) and `uv`/`uvx` (Astral installer). Neither
-   is under `CACHEBUST`: they sit right after the stable layer, so they
-   re-resolve their latest versions whenever the base/apt content above them
-   changes, while staying cached across CACHEBUST-only rebuilds.
+   version resolved at build time), `uv`/`uvx` (Astral installer), and pnpm
+   (official standalone installer from `get.pnpm.io`, which builds a
+   self-contained tree under `/usr/local/pnpm` with shims symlinked into
+   `/usr/local/bin`). None is under `CACHEBUST`: they sit right after the
+   stable layer, so they re-resolve their latest versions whenever the
+   base/apt content above them changes, while staying cached across
+   CACHEBUST-only rebuilds. The pnpm tree is Node-independent and, being
+   pnpm >= 10, self-pins per project via `packageManager` in `package.json`,
+   so the image just needs a bootstrap install. Note: the get.pnpm.io script
+   runs `pnpm setup --force`, which needs `SHELL` set and writes shell
+   profile notes into `$HOME` - the layer runs it with a throwaway
+   `HOME=/tmp/pnpm-home` so nothing lands in any real profile.
 3. **User setup layer** - `opencode` user, XDG dirs, perms. Static, cached.
 4. **Volatile layer** - starts at `ARG CACHEBUST` (injected by the launcher as
    `--build-arg CACHEBUST=$(date +%s)`). Its only instruction is the unpinned
@@ -118,7 +127,7 @@ The Dockerfile is split into layers keyed to how often their inputs change:
 
 Do not re-pin OpenCode: the whole point of the volatile layer is tracking the
 fast-moving upstream releases. Do not move slow-moving installs (apt, composer)
-into the volatile layer, and do not move Node/uv under `CACHEBUST` either -
+into the volatile layer, and do not move Node/uv/pnpm under `CACHEBUST` either -
 that would re-download their installers on every rebuild for no freshness gain
 (they already track their latest when their layer re-runs).
 

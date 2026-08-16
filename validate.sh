@@ -68,6 +68,7 @@ if "$docker_bin" run --rm --entrypoint bash --user 1000:1000 "$image" -c '
     echo "pip3: $(pip3 --version)"
     echo "uv: $(uv --version)"
     echo "uvx: $(uvx --version)"
+    echo "pnpm: $(pnpm --version)"
     echo "opencode: $(opencode --version)"
     echo "jq: $(jq --version)"
     echo "gcc: $(gcc --version | head -1)"
