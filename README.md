@@ -19,6 +19,8 @@ general-purpose toolchain:
   `pgsql`/`pdo_pgsql`, `bcmath`, `gd`, and **Xdebug** (passive by default)
 - **Composer** 2.x
 - **uv** (Python package manager) with its `uvx` companion
+- **project-docs-mcp** — RAG docs-search MCP server (`search_project_docs`),
+  installed globally via npm; needs `OPENROUTER_API_KEY` at runtime
 - CLI tools: `git`, `git-lfs`, `jq`, `curl`, `ripgrep`, `openssh-client`,
   `unzip`, `zip`, `bash`
 - Native build toolchain: `build-essential` (gcc/g++/make), `cmake`,
@@ -154,5 +156,5 @@ user; you only need the `CACHEBUST` argument when building by hand.
 
 `./validate.sh` requires a working Docker environment and a built `ddr-opencode`
 image: it fails if either is missing, then verifies the toolchain assumptions
-(java, php, composer, node, python3, pip3, uv, uvx, opencode, php modules, and
-xdebug) inside the container.
+(java, php, composer, node, python3, pip3, uv, uvx, pnpm, opencode,
+project-docs-mcp, php modules, and xdebug) inside the container.

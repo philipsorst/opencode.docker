@@ -11,7 +11,8 @@ sandboxed, general-purpose dev container.
 - `Dockerfile` - builds the `ddr-opencode` image: Ubuntu 26.04 (resolute) LTS
   base, OpenJDK 25 (LTS), Node.js (active LTS), Python 3.14 (the distro
   `python3`), PHP 8.5 + xdebug + `pgsql`/`pdo_pgsql`, Composer, `uv` (`uvx`),
-  pnpm (official standalone binary), a native build toolchain, common CLI
+  pnpm (official standalone binary), the `project-docs-mcp` MCP server (global
+  npm install), a native build toolchain, common CLI
   tools, and the OpenCode binary. Zero third-party package repos (until PHP
   8.6 needs ondrej/sury).
 - `opencode-acp-docker` - POSIX `sh` launcher (the user-facing entry point).
@@ -90,6 +91,13 @@ sandboxed, general-purpose dev container.
 - `php` resolves to 8.5 via a conditional symlink (`if [ ! -e /usr/bin/php ];
   then ln -s php8.5 /usr/bin/php; fi`) - Ubuntu does not always register the
   unversioned binary when only `php8.5-*` packages are installed.
+- The `project-docs-mcp` MCP server (philipsorst's RAG docs-search server,
+  `search_project_docs` tool) is installed globally via npm in its own fresh
+  tooling layer, from the moving `latest` release tarball at
+  `https://git.sorst.net/philipsorst/project-docs.mcp/releases/download/latest/project-docs-mcp.tgz`.
+  It needs `OPENROUTER_API_KEY` at runtime (fails loudly on first use
+  without it) and indexes into `$XDG_CACHE_HOME/project-docs-mcp/<hash>.sqlite`,
+  which is ephemeral per-container like all caches.
 - Postgres support comes from `php8.5-pgsql` (enables `pgsql` + `pdo_pgsql`),
   so the agent can run tests against a Postgres published on a shared Docker
   network.
@@ -106,10 +114,11 @@ The Dockerfile is split into layers keyed to how often their inputs change:
    `composer`), php symlink, xdebug ini. Cached; refreshed only when the
    `ubuntu:26.04` tag digest moves (launcher passes `--pull`).
 2. **Fresh tooling layers** - one `RUN` each for unpinned Node.js (active LTS,
-   version resolved at build time), `uv`/`uvx` (Astral installer), and pnpm
+   version resolved at build time), `uv`/`uvx` (Astral installer), pnpm
    (official standalone installer from `get.pnpm.io`, which builds a
    self-contained tree under `/usr/local/pnpm` with shims symlinked into
-   `/usr/local/bin`). None is under `CACHEBUST`: they sit right after the
+   `/usr/local/bin`), and the `project-docs-mcp` global npm install (moving
+   `latest` tarball). None is under `CACHEBUST`: they sit right after the
    stable layer, so they re-resolve their latest versions whenever the
    base/apt content above them changes, while staying cached across
    CACHEBUST-only rebuilds. The pnpm tree is Node-independent and, being

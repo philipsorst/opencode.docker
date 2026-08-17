@@ -80,6 +80,12 @@ if "$docker_bin" run --rm --entrypoint bash --user 1000:1000 "$image" -c '
     echo "shellcheck: $(shellcheck --version | sed -n "s/^version: /v/p")"
     echo "php modules: $(php -m | grep -icE "^(curl|mbstring|dom|xml|zip|intl|sqlite3|bcmath|gd|pgsql|pdo_pgsql)$") of 11"
     php -r "echo \"php xdebug: \".(extension_loaded(\"xdebug\") ? \"present\" : \"missing\").\" mode=\".var_export(ini_get(\"xdebug.mode\"), true).PHP_EOL;"
+    if project-docs-mcp --help >/dev/null 2>&1; then
+        echo "project-docs-mcp: OK"
+    else
+        echo "project-docs-mcp: FAILED"
+        exit 1
+    fi
 '; then
     printf 'container checks: OK\n'
 else

@@ -72,6 +72,15 @@ RUN set -eu; \
     && rm -f /tmp/node.tar.xz
 
 RUN set -eu; \
+    export HOME=/tmp/npm-home \
+    && mkdir -p "$HOME" \
+    && curl -fL --retry 5 -o /tmp/pd.tgz \
+        https://git.sorst.net/philipsorst/project-docs.mcp/releases/download/latest/project-docs-mcp.tgz \
+    && npm install -g /tmp/pd.tgz \
+    && rm -f /tmp/pd.tgz \
+    && rm -rf "$HOME"
+
+RUN set -eu; \
     curl -LsSf https://astral.sh/uv/install.sh | sh \
     && install -m 0755 /root/.local/bin/uv /usr/local/bin/uv \
     && install -m 0755 /root/.local/bin/uvx /usr/local/bin/uvx \
