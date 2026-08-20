@@ -20,6 +20,12 @@ container_opencode_dir="$container_home/.local/share/opencode"
 container_opencode_state_dir="$container_home/.local/state/opencode"
 image="${OPENCODE_DOCKER_IMAGE:-ddr-opencode}"
 network="${OPENCODE_DOCKER_NETWORK:-development}"
+opencode_command="${OPENCODE_DOCKER_COMMAND:-}"
+
+tty_opts=-it
+if [ "$opencode_command" = acp ]; then
+    tty_opts=-i
+fi
 
 docker_bin="${DOCKER_BIN:-}"
 if [ -z "$docker_bin" ]; then
@@ -87,7 +93,7 @@ fi
 
 if [ ! -f "$host_opencode_dir/auth.json" ]; then
     printf 'OpenCode auth file not found: %s/auth.json\n' "$host_opencode_dir" >&2
-    printf '%s\n' 'Authenticate OpenCode on the host before using this ACP launcher.' >&2
+    printf '%s\n' 'Authenticate OpenCode on the host before using this launcher.' >&2
     exit 1
 fi
 
@@ -201,7 +207,7 @@ fi
 
 IFS='
 '
-exec "$docker_bin" run --rm --init -i \
+exec "$docker_bin" run --rm --init $tty_opts \
     --network "$network" \
     --user "$uid:$gid" \
     --workdir "$project_dir" \
@@ -212,10 +218,11 @@ exec "$docker_bin" run --rm --init -i \
     $cache_mounts \
     $git_identity_env \
     --env "HOME=$container_home" \
+    --env "TERM=${TERM:-}" \
     --env "XDG_CONFIG_HOME=$container_home/.config" \
     --env "XDG_DATA_HOME=$container_home/.local/share" \
     --env "XDG_STATE_HOME=$container_home/.local/state" \
     --env "XDG_CACHE_HOME=$container_home/.cache" \
     --env OPENCODE_DISABLE_AUTOUPDATE=true \
     "$image" \
-    acp
+    $opencode_command "$@"

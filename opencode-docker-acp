@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
+exec env OPENCODE_DOCKER_COMMAND=acp "$script_dir/opencode-docker" "$@"

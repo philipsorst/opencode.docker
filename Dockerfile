@@ -12,7 +12,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
     rm -f /etc/apt/apt.conf.d/docker-clean \
     && sed -i \
-        -e 's#http://archive.ubuntu.com/ubuntu/#https://ftp.halifax.rwth-aachen.de/ubuntu/#' \
+        -e 's#http://archive.ubuntu.com/ubuntu/#http://ftp.halifax.rwth-aachen.de/ubuntu/#' \
         /etc/apt/sources.list.d/ubuntu.sources \
     && DEBIAN_FRONTEND=noninteractive apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -137,4 +137,4 @@ WORKDIR /workspace
 USER opencode
 
 ENTRYPOINT ["opencode"]
-CMD ["acp"]
+CMD []

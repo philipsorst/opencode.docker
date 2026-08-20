@@ -37,7 +37,7 @@ if ! "$docker_bin" image inspect "$image" >/dev/null 2>&1; then
     exit 1
 fi
 
-if sh -n "$script_dir/opencode-acp-docker"; then
+if sh -n "$script_dir/opencode-docker" && sh -n "$script_dir/opencode-docker-acp"; then
     printf 'launcher lint: OK\n'
 else
     printf 'launcher lint: FAILED\n'

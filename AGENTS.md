@@ -4,9 +4,10 @@ Guidance for AI coding agents working in this repository.
 
 ## What this project is
 
-A self-updating launcher that runs the OpenCode AI agent (`opencode acp`, the ACP
-server, used as the backend for JetBrains/other IDE integrations) inside a
-sandboxed, general-purpose dev container.
+A self-updating launcher that runs the OpenCode AI agent (the interactive TUI
+by default, or `opencode acp` — the ACP server used as the backend for
+JetBrains/other IDE integrations — via the `-acp` wrapper) inside a sandboxed,
+general-purpose dev container.
 
 - `Dockerfile` - builds the `ddr-opencode` image: Ubuntu 26.04 (resolute) LTS
   base, OpenJDK 25 (LTS), Node.js (active LTS), Python 3.14 (the distro
@@ -15,9 +16,12 @@ sandboxed, general-purpose dev container.
   npm install), a native build toolchain, common CLI
   tools, and the OpenCode binary. Zero third-party package repos (until PHP
   8.6 needs ondrej/sury).
-- `opencode-acp-docker` - POSIX `sh` launcher (the user-facing entry point).
+- `opencode-docker` - POSIX `sh` launcher (the user-facing entry point).
   Ensures the image exists/fresh, validates the host OpenCode auth, then
-  `docker run`s the ACP server against the current directory.
+  `docker run`s the interactive OpenCode agent against the current directory.
+- `opencode-docker-acp` - thin wrapper that re-invokes `opencode-docker` with
+  the env var `OPENCODE_DOCKER_COMMAND=acp`, which starts the ACP server
+  instead of the interactive TUI (and swaps `-it` for `-i`).
 - `validate.sh` - POSIX `sh` validation. Must run where Docker is available:
   it fails hard if the Docker CLI is missing or the `ddr-opencode` image is not
   built, then verifies the toolchain assumptions inside the container (tool
@@ -38,8 +42,10 @@ sandboxed, general-purpose dev container.
   for: the launcher inspects them and rebuilds on mismatch, so `/home/opencode`
   is always writable by the runtime `--user`. Keep the labels when touching the
   user setup.
-- The image ENTRYPOINT is `opencode`. To run custom commands for verification
-  use `docker run --rm --entrypoint bash ... <image> -c '...'`.
+- The image ENTRYPOINT is `opencode` with an empty default `CMD`, so a bare
+  `docker run` starts the interactive TUI; pass `acp` to run the ACP server.
+  To run custom commands for verification use
+  `docker run --rm --entrypoint bash ... <image> -c '...'`.
 - Ubuntu 26.04 has no `uv` package in its archives, so `uv`/`uvx` are installed
   via the official Astral installer (`https://astral.sh/uv/install.sh`) into
   `/usr/local/bin` in their own unpinned layer (see "Build cache strategy").
@@ -196,12 +202,15 @@ The launcher cannot run end-to-end unless the host has
    (nanoseconds stripped) - keep both branches working (macOS support).
 3. If a rebuild is needed but no `Dockerfile` is found next to the script,
    it aborts with an error.
-4. Runs `docker run --rm --init -i --user $uid:$gid --workdir <cwd>` with the
+4. Runs `docker run --rm --init -it --user $uid:$gid --workdir <cwd>` with the
    project dir and the OpenCode data + state dirs bind-mounted, XDG env vars
    pointing at `/home/opencode`, `OPENCODE_DISABLE_AUTOUPDATE=true`, the host
    git identity (when configured) forwarded as `GIT_AUTHOR_*`/`GIT_COMMITTER_*`,
    and `--network "$network"` (the `development` network by default, overridable
-   via `OPENCODE_DOCKER_NETWORK`), invoking `acp`.
+   via `OPENCODE_DOCKER_NETWORK`), passing `$OPENCODE_DOCKER_COMMAND` as the
+   container command *only when set* (the acp wrapper sets it to `acp`, which
+   also swaps `-it` for `-i`); with no command, the image's empty default CMD
+   runs the interactive TUI.
 
 ## Conventions
 

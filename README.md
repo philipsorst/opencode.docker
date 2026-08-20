@@ -2,8 +2,9 @@
 
 Run the [OpenCode](https://opencode.ai) AI agent inside a sandboxed,
 general-purpose dev container. A single launcher builds the image when needed,
-keeps it fresh, and starts the OpenCode ACP server against your project
-directory.
+keeps it fresh, and starts OpenCode against your project directory — the
+interactive TUI by default, or the ACP server for IDE integrations via the
+`-acp` variant.
 
 ## What you get
 
@@ -52,7 +53,8 @@ release requires it.
 
 ```sh
 cd /path/to/your/project
-/path/to/opencode.docker/opencode-acp-docker
+/path/to/opencode.docker/opencode-docker      # interactive TUI
+/path/to/opencode.docker/opencode-docker-acp  # ACP server for IDE integrations
 ```
 
 The launcher will:
@@ -60,8 +62,9 @@ The launcher will:
 1. Check for the `ddr-opencode` image and build it if it does not exist.
 2. Rebuild it automatically if the image is older than one day, or was built
    for a different user ID (so `$HOME` stays writable for your account), then
-   `docker run`s the OpenCode **ACP** server with your project as the working
-   directory.
+   `docker run`s the OpenCode agent with your project as the working directory
+   — the interactive TUI by default, or the ACP server via the `-acp` variant
+   (which sets `OPENCODE_DOCKER_COMMAND=acp`).
 
 Your project directory is mounted read-write and the container runs as your
 own UID/GID, so files created by the agent belong to you. The container reuses
@@ -145,9 +148,9 @@ the details and the `docker-clean` gotcha that keeps this caching working.
 ## Verification
 
 ```sh
-sh -n opencode-acp-docker                              # lint the launcher
-./build.sh                                             # build the image
-./validate.sh                                          # validate toolchain in the container
+sh -n opencode-docker opencode-docker-acp       # lint the launchers
+./build.sh                                       # build the image
+./validate.sh                                    # validate toolchain in the container
 ```
 
 `./build.sh` and the launcher build the image with `--build-arg OPENCODE_UID=$(id -u)
