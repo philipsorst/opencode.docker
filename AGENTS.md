@@ -10,9 +10,9 @@ JetBrains/other IDE integrations — via the `-acp` wrapper) inside a sandboxed,
 general-purpose dev container.
 
 - `Dockerfile` - builds the `ddr-opencode` image: Ubuntu 26.04 (resolute) LTS
-  base, OpenJDK 25 (LTS), Node.js (active LTS), Python 3.14 (the distro
+  base, OpenJDK 25 (LTS), Node.js (active LTS), Python  ../../3.14 (the distro
   `python3`), PHP 8.5 + xdebug + `pgsql`/`pdo_pgsql`, Composer, `uv` (`uvx`),
-  pnpm (official standalone binary), the `project-docs-mcp` MCP server (global
+  pnpm (official standalone binary), Go (official tarball), the `project-docs-mcp` MCP server (global
   npm install), a native build toolchain, common CLI
   tools, and the OpenCode binary. Zero third-party package repos (until PHP
   8.6 needs ondrej/sury).
@@ -54,6 +54,12 @@ general-purpose dev container.
   build time from `https://nodejs.org/dist/index.json` and must be the current
   **active LTS**: the first entry whose `"lts"` is a non-null string
   (grep literally), *not* `dist/latest`, which may be an odd (non-LTS) major.
+- Go is installed from the go.dev tarballs into `/usr/local/go` (symlinks in
+  `/usr/local/bin`),notthe distro archive ( (which lags the latest release line).
+  The version is resolved at build time from `https://go.dev/VERSION?m=text`.
+  `/home/opencode/go/bin` is on `PATH` so `go install`'d tools are runnable.
+
+  (The launcher read-write mounts the host `GOMODCACHE`; see the tool-caches bullet.)
 - Python is the distro `python3` (3.14, the current stable line, maintained by
   Ubuntu; the sandbox's `uv`/`uvx` reuse it as the default interpreter). Do NOT
   bypass PEP 668 to pip-install globally: the image intentionally keeps the
@@ -120,8 +126,9 @@ The Dockerfile is split into layers keyed to how often their inputs change:
    `composer`), php symlink, xdebug ini. Cached; refreshed only when the
    `ubuntu:26.04` tag digest moves (launcher passes `--pull`).
 2. **Fresh tooling layers** - one `RUN` each for unpinned Node.js (active LTS,
-   version resolved at build time), `uv`/`uvx` (Astral installer), pnpm
-   (official standalone installer from `get.pnpm.io`, which builds a
+    version resolved at build time), Go (official tarball from `go.dev`, version
+    resolved at build time), `uv`/`uvx` (Astral installer), pnpm
+    (official standalone installer from `get.pnpm.io`, which builds a
    self-contained tree under `/usr/local/pnpm` with shims symlinked into
    `/usr/local/bin`), and the `project-docs-mcp` global npm install (moving
    `latest` tarball). None is under `CACHEBUST`: they sit right after the
@@ -142,7 +149,7 @@ The Dockerfile is split into layers keyed to how often their inputs change:
 
 Do not re-pin OpenCode: the whole point of the volatile layer is tracking the
 fast-moving upstream releases. Do not move slow-moving installs (apt, composer)
-into the volatile layer, and do not move Node/uv/pnpm under `CACHEBUST` either -
+into the volatile layer, and do not move Node/Go/uv/pnpm under `CACHEBUST` either -
 that would re-download their installers on every rebuild for no freshness gain
 (they already track their latest when their layer re-runs).
 

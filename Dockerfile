@@ -100,6 +100,20 @@ RUN set -eu; \
     && pnpm --version \
     && rm -rf "$HOME"
 
+RUN set -eu; \
+    go_arch="$(uname -m)"; \
+    case "$go_arch" in \
+        x86_64|amd64) go_arch=amd64 ;; \
+        aarch64|arm64) go_arch=arm64 ;; \
+        *) echo "unsupported architecture: $go_arch" >&2; exit 1 ;; \
+    esac; \
+    go_version=$(curl -fsSL https://go.dev/VERSION?m=text | sed -n '1s/^go//p'); \
+    curl -fsSL "https://go.dev/dl/go${go_version}.linux-${go_arch}.tar.gz" -o /tmp/go.tar.gz \
+    && tar -C /usr/local -xzf /tmp/go.tar.gz \
+    && ln -s /usr/local/go/bin/go /usr/local/bin/go \
+    && ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt \
+    && rm -f /tmp/go.tar.gz
+
 RUN groupadd -o --gid "${OPENCODE_GID}" opencode \
     && useradd -o \
         --uid "${OPENCODE_UID}" \
@@ -125,6 +139,7 @@ RUN echo "cachebust=${CACHEBUST}" \
     && rm -rf /root/.opencode
 
 ENV HOME=/home/opencode \
+    PATH=/home/opencode/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
     XDG_CONFIG_HOME=/home/opencode/.config \
     XDG_DATA_HOME=/home/opencode/.local/share \
     XDG_STATE_HOME=/home/opencode/.local/state \

@@ -70,6 +70,7 @@ if "$docker_bin" run --rm --entrypoint bash --user 1000:1000 "$image" -c '
     echo "uvx: $(uvx --version)"
     echo "pnpm: $(pnpm --version)"
     echo "opencode: $(opencode --version)"
+    echo "go: $(go version)"
     echo "jq: $(jq --version)"
     echo "gcc: $(gcc --version | head -1)"
     echo "cmake: $(cmake --version | head -1)"
