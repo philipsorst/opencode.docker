@@ -131,6 +131,15 @@ if [ -f "$host_opencode_config_dir/opencode.docker.json" ]; then
 type=bind,src=$host_opencode_config_dir/opencode.docker.json,dst=$container_opencode_config_dir/opencode.json,ro"
 fi
 
+env_local_mounts=
+if [ -f "$project_dir/.env.local" ]; then
+    mask_file=$(mktemp)
+    printf 'Masking %s/.env.local (mounted over with an empty read-only file).\n' "$project_dir" >&2
+    env_local_mounts="$env_local_mounts
+--mount
+type=bind,src=$mask_file,dst=$project_dir/.env.local,ro"
+fi
+
 host_cache_home="${XDG_CACHE_HOME:-$HOME/.cache}"
 container_cache_dir=$container_home/.cache
 container_data_dir=$container_home/.local/share
@@ -215,6 +224,7 @@ exec "$docker_bin" run --rm --init $tty_opts \
     --mount "type=bind,src=$host_opencode_dir,dst=$container_opencode_dir" \
     --mount "type=bind,src=$host_opencode_state_dir,dst=$container_opencode_state_dir" \
     $config_mounts \
+    $env_local_mounts \
     $cache_mounts \
     $git_identity_env \
     --env "HOME=$container_home" \

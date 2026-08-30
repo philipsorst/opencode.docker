@@ -42,6 +42,15 @@ general-purpose dev container.
   for: the launcher inspects them and rebuilds on mismatch, so `/home/opencode`
   is always writable by the runtime `--user`. Keep the labels when touching the
   user setup.
+- The launcher masks `$project_dir/.env.local`: if that file exists, it
+  bind-mounts an empty read-only file (an `mktemp` placeholder) over the path,
+  so the agent can never read the real secrets. The container runs as the same
+  UID/GID as the host user, so host-side `chmod 000` would not hold (the agent
+  could chmod it back through the read-write project mount), and
+  deleting/renaming the file would mutate the project; the empty-file overlay
+  keeps the path present and `test -f`-compatible so dotenv parsing still
+  behaves, while the real content is unreachable and writes fail (ro). Masking
+  is unconditional — do not add an opt-out.
 - The image ENTRYPOINT is `opencode` with an empty default `CMD`, so a bare
   `docker run` starts the interactive TUI; pass `acp` to run the ACP server.
   To run custom commands for verification use
@@ -210,7 +219,9 @@ The launcher cannot run end-to-end unless the host has
 3. If a rebuild is needed but no `Dockerfile` is found next to the script,
    it aborts with an error.
 4. Runs `docker run --rm --init -it --user $uid:$gid --workdir <cwd>` with the
-   project dir and the OpenCode data + state dirs bind-mounted, XDG env vars
+   project dir and the OpenCode data + state dirs bind-mounted, an empty
+   read-only file mounted over `$project_dir/.env.local` when it exists
+   (see the masking bullet above), XDG env vars
    pointing at `/home/opencode`, `OPENCODE_DISABLE_AUTOUPDATE=true`, the host
    git identity (when configured) forwarded as `GIT_AUTHOR_*`/`GIT_COMMITTER_*`,
    and `--network "$network"` (the `development` network by default, overridable
